@@ -220,6 +220,27 @@ html[data-theme="light"] .log{color:#dce8ff !important}
   await fs.writeFile(p, h);
 }
 
+// Temporary render diagnostics: source excerpts go only to Railway logs when explicitly enabled.
+if (process.env.SF_RENDER_DIAG === "1") {
+  const dbg = await fs.readFile(path.join(root, "server.mjs"), "utf8");
+  const keys = [
+    "FORGE SELF-MOTION",
+    "Подготавливаем локальный IMAGE-FIRST рендер",
+    "write EPIPE",
+    "stdin.write",
+    ".stdin",
+    "spawn(",
+    "ffmpeg",
+    "renderScene",
+    "renderLocal",
+    "final render"
+  ];
+  for (const key of keys) {
+    const i = dbg.indexOf(key);
+    if (i >= 0) console.log("\n[SF_RENDER_DIAG:"+key+"]\n" + dbg.slice(Math.max(0,i-1800), Math.min(dbg.length,i+4200)) + "\n[/SF_RENDER_DIAG]\n");
+  }
+}
+
 await fs.mkdir(path.join(root, "catalog"), { recursive: true });
 try {
   await fs.access(path.join(root, "catalog", "topics_1000.json"));
