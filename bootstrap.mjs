@@ -84,7 +84,7 @@ await restore("index.html", "public/index.html");
   if (h.includes(oldLogoutState)) {
     h = h.replace(
       oldLogoutState,
-      "if(logoutBtn){logoutBtn.disabled=!state.session?.isOwner;logoutBtn.style.display=state.session?.isOwner?'':'none'}const ownerLoginBtn=document.getElementById('ownerLoginBtn');if(ownerLoginBtn)ownerLoginBtn.style.display=state.session?.isOwner?'none':'';const planMini=document.querySelector('.planMini');if(planMini)planMini.textContent=state.session?.isOwner?'OWNER':'FREE';"
+      "if(logoutBtn){logoutBtn.disabled=!state.session?.isOwner;logoutBtn.style.display=state.session?.isOwner?'':'none'}const ownerLoginBtn=document.getElementById('ownerLoginBtn');if(ownerLoginBtn){ownerLoginBtn.style.display=state.session?.isOwner?'none':'';const ownerLoginLabel=ownerLoginBtn.querySelector('span');if(ownerLoginLabel)ownerLoginLabel.textContent=tri('Войти как владелец','Owner login','Owner sifatida kirish')}const planMini=document.querySelector('.planMini');if(planMini)planMini.textContent=state.session?.isOwner?'OWNER':'FREE';"
     );
   }
 
