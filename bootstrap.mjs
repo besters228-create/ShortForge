@@ -90,6 +90,28 @@ await restore("index.html", "public/index.html");
 
   h = h.replace("const statusText=ready?c.ready:c.prepare;", "const statusText=cloudReady?c.ready:localReady?c.ready:c.prepare;");
 
+  // LOCALIZED LANGUAGE NAMES: every language selector follows the active UI language.
+  h = h.replace(
+    "function opts(obj,val){return Object.entries(obj).map(([k,v])=>\`<option value=\\\"\${k}\\\" \${k===val?'selected':''}>\${e(v)}</option>\`).join('')}",
+    "function opts(obj,val){return Object.entries(obj).map(([k,v])=>\`<option value=\\\"\${k}\\\" \${k===val?'selected':''}>\${e(v)}</option>\`).join('')}function languageNames(){return state.lang==='ru'?{ru:'Русский',en:'Английский',uz:'Узбекский'}:state.lang==='uz'?{ru:'Ruscha',en:'Inglizcha',uz:'O‘zbekcha'}:{ru:'Russian',en:'English',uz:'Uzbek'}}"
+  );
+  h = h.replace(
+    '<select id="lang" class="compactSelect"><option value="ru">RU</option><option value="en">EN</option><option value="uz">UZ</option></select>',
+    '<select id="lang" class="compactSelect"></select>'
+  );
+  h = h.replace(
+    "document.getElementById('lang').value=state.lang;document.getElementById('themeBtn').textContent=state.theme==='dark'?'☀️':'🌙';",
+    "const langSel=document.getElementById('lang');if(langSel){langSel.innerHTML=opts(languageNames(),state.lang);langSel.value=state.lang}document.getElementById('themeBtn').textContent=state.theme==='dark'?'☀️':'🌙';"
+  );
+  h = h.replace(
+    "<select id=\"aLang\"><option value=\"ru\" \${state.lang==='ru'?'selected':''}>Русский</option><option value=\"en\" \${state.lang==='en'?'selected':''}>English</option><option value=\"uz\" \${state.lang==='uz'?'selected':''}>O‘zbek</option></select>",
+    "<select id=\"aLang\">\${opts(languageNames(),state.lang)}</select>"
+  );
+  h = h.replace(
+    "opts({ru:'Русский',en:'English',uz:'O‘zbek'},state.lang)",
+    "opts(languageNames(),state.lang)"
+  );
+
   // LIGHT THEME CONTRAST FIX: later dark-mode polish rules used to override light variables.
   if (!h.includes("LIGHT THEME CONTRAST FIX")) {
     const lightFix = `
