@@ -6,12 +6,18 @@ const root = process.cwd();
 
 async function restore(name, target) {
   const dir = path.join(root, "payload");
-  const prefix = name + ".br.b64.part";
-  const parts = (await fs.readdir(dir)).filter((x) => x.startsWith(prefix)).sort();
-  if (!parts.length) throw new Error("Missing payload for " + name);
-  let b64 = "";
-  for (const p of parts) b64 += await fs.readFile(path.join(dir, p), "utf8");
-  const data = brotliDecompressSync(Buffer.from(b64, "base64"));
+  const full = path.join(dir, name + ".br.b64");
+  let b64;
+  try {
+    b64 = await fs.readFile(full, "utf8");
+  } catch {
+    const prefix = name + ".br.b64.part";
+    const parts = (await fs.readdir(dir)).filter((x) => x.startsWith(prefix)).sort();
+    if (!parts.length) throw new Error("Missing payload for " + name);
+    b64 = "";
+    for (const p of parts) b64 += await fs.readFile(path.join(dir, p), "utf8");
+  }
+  const data = brotliDecompressSync(Buffer.from(b64.trim(), "base64"));
   const out = path.join(root, target);
   await fs.mkdir(path.dirname(out), { recursive: true });
   await fs.writeFile(out, data);
