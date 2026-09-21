@@ -52,6 +52,52 @@ await restore("index.html", "public/index.html");
       );
     }
   }
+  // RENDER STABILITY HOTFIX: Railway has a 1 GB memory limit. Raw 1080p RGB frames
+  // can make ffmpeg close its stdin, which surfaces as write EPIPE. Keep the requested
+  // final profile, but use a memory-safe internal raster on public Railway and let
+  // normalizeClip produce the requested final dimensions.
+  const renderHead =
+    'const seconds=Math.max(.8,Number(partSeconds)||5),portrait=ctx.format==="shorts",q=localQualityProfile(ctx);\n  const [sw,sh]=portrait?q.short:q.wide,fps=q.fps,frames=Math.max(1,Math.round(seconds*fps));';
+  const renderHeadFixed =
+    'const seconds=Math.max(.8,Number(partSeconds)||5),portrait=ctx.format==="shorts",q=localQualityProfile(ctx);\n  const [targetW,targetH]=portrait?q.short:q.wide;\n  const publicMemorySafe=Boolean(process.env.RAILWAY_PROJECT_ID||process.env.RAILWAY_ENVIRONMENT_ID||process.env.SF_PUBLIC_MODE==="1");\n  const [sw,sh]=publicMemorySafe&&!ctx.draft?(portrait?[540,960]:[960,540]):[targetW,targetH];\n  const fps=publicMemorySafe&&!ctx.draft?Math.min(24,q.fps):q.fps,frames=Math.max(1,Math.round(seconds*fps));';
+  if(s.includes(renderHead)) s=s.replace(renderHead,renderHeadFixed);
+
+  // Cloud PHOTO can still generate at the requested target resolution because that
+  // path does not stream raw RGB frames through Node.
+  s=s.replace(
+    'generateCloudPhotoWithRetries(localImageFullPrompt(scene,ctx),sw,sh,seed,ctx.signal',
+    'generateCloudPhotoWithRetries(localImageFullPrompt(scene,ctx),targetW,targetH,seed,ctx.signal'
+  );
+  s=s.replaceAll(
+    'generateLocalImageModel(localImageFullPrompt(scene,ctx)+suffix,sw,sh,ctx.style||"photorealistic"',
+    'generateLocalImageModel(localImageFullPrompt(scene,ctx)+suffix,targetW,targetH,ctx.style||"photorealistic"'
+  );
+  s=s.replaceAll(
+    'generateLocalImageModel(localImagePlatePrompt(scene,ctx)+suffix,sw,sh,ctx.style||"photorealistic"',
+    'generateLocalImageModel(localImagePlatePrompt(scene,ctx)+suffix,targetW,targetH,ctx.style||"photorealistic"'
+  );
+
+  // When publicMemorySafe is active, encoding the internal raw stream must be fast
+  // and bounded. Final normalizeClip applies the requested Max/Ultra profile later.
+  const rawPresetOld='ctx.draft?"ultrafast":q.preset,"-crf",String(ctx.draft?28:q.crf)';
+  const rawPresetNew='ctx.draft?"ultrafast":publicMemorySafe?"ultrafast":q.preset,"-crf",String(ctx.draft?28:publicMemorySafe?23:q.crf)';
+  s=s.replace(rawPresetOld,rawPresetNew);
+
+  // Swallow the pipe's secondary EPIPE event and report the actual ffmpeg close/error
+  // instead of crashing the job with a misleading write EPIPE.
+  const spawnOld='const child=spawn(ffmpegPath,args,{stdio:["pipe","ignore","pipe"],cwd:ROOT});let stderr="",closed=false;';
+  const spawnNew='const child=spawn(ffmpegPath,args,{stdio:["pipe","ignore","pipe"],cwd:ROOT});let stderr="",closed=false,stdinError=""; child.stdin.on("error",e=>{stdinError=cleanError(e)});';
+  s=s.replace(spawnOld,spawnNew);
+  const closeOld='else code===0?resolve():reject(new Error(stderr.slice(-4000)||\`FFmpeg exited ${code}\`));';
+  const closeNew='else code===0?resolve():reject(new Error(stderr.slice(-4000)||stdinError||\`FFmpeg exited ${code}\`));';
+  s=s.replace(closeOld,closeNew);
+  const epipeCatchOld='}catch(e){try{child.stdin.destroy();}catch{}stop();reject(e);}})();';
+  const epipeCatchNew='}catch(e){if(e?.code==="EPIPE"){try{child.stdin.destroy();}catch{}return;}try{child.stdin.destroy();}catch{}stop();reject(e);}})();';
+  s=s.replace(epipeCatchOld,epipeCatchNew);
+
+  if(s.includes(renderHead)) throw new Error("RENDER HOTFIX failed: old 1080p raw render head remains");
+  if(!s.includes("publicMemorySafe")) throw new Error("RENDER HOTFIX failed: public memory-safe mode missing");
+
   await fs.writeFile(p, s);
 }
 
@@ -110,6 +156,16 @@ await restore("index.html", "public/index.html");
   h = h.replace(
     "opts({ru:'Русский',en:'English',uz:'O‘zbek'},state.lang)",
     "opts(languageNames(),state.lang)"
+  );
+
+  // STORYBOARD INTERNAL-ONLY: keep planning and scene structures in code, but do not
+  // route normal users to the standalone storyboard editor.
+  h = h.replace("state.planProgress=null;state.section='storyboard';render()", "state.planProgress=null;state.section='create';render()");
+  h = h.replace("['studio','🎬'],['storyboard','🧩'],", "['studio','🎬'],");
+  h = h.replace("['home','create','studio','storyboard','timeline']", "['home','create','studio','timeline']");
+  h = h.replace(
+    "function render(){if(state.section==='users'&&!state.session?.isOwner)state.section='home';",
+    "function render(){if(state.section==='storyboard')state.section='create';if(state.section==='users'&&!state.session?.isOwner)state.section='home';"
   );
 
   // LIGHT THEME CONTRAST FIX: later dark-mode polish rules used to override light variables.
@@ -218,39 +274,6 @@ html[data-theme="light"] .log{color:#dce8ff !important}
   if (!h.includes("a==='owner-login'")) throw new Error("PUBLIC HOTFIX failed: owner handler not inserted");
 
   await fs.writeFile(p, h);
-}
-
-// Temporary render diagnostics: source excerpts go only to Railway logs when explicitly enabled.
-if (process.env.SF_RENDER_DIAG === "1") {
-  const dbg = await fs.readFile(path.join(root, "server.mjs"), "utf8");
-  const keys = [
-    "FORGE SELF-MOTION",
-    "Подготавливаем локальный IMAGE-FIRST рендер",
-    "write EPIPE",
-    "stdin.write",
-    ".stdin",
-    "spawn(",
-    "ffmpeg",
-    "renderScene",
-    "renderLocal",
-    "const sw",
-    "const sh",
-    "const fps",
-    "const frames",
-    "const q=",
-    "selfMotion",
-    "SELF-MOTION",
-    "final render"
-  ];
-  for (const key of keys) {
-    const i = dbg.indexOf(key);
-    if (i >= 0) console.log("\n[SF_RENDER_DIAG:"+key+"]\n" + dbg.slice(Math.max(0,i-1800), Math.min(dbg.length,i+4200)) + "\n[/SF_RENDER_DIAG]\n");
-  }
-  const wi=dbg.indexOf("child.stdin.write(frame)");
-  if(wi>=0){
-    const fn=dbg.lastIndexOf("async function",wi);
-    console.log("\n[SF_RENDER_DIAG:SELF_MOTION_FULL]\n"+dbg.slice(fn>=0?fn:Math.max(0,wi-9000),Math.min(dbg.length,wi+3500))+"\n[/SF_RENDER_DIAG]\n");
-  }
 }
 
 await fs.mkdir(path.join(root, "catalog"), { recursive: true });
