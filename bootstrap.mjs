@@ -239,6 +239,11 @@ if (process.env.SF_RENDER_DIAG === "1") {
     const i = dbg.indexOf(key);
     if (i >= 0) console.log("\n[SF_RENDER_DIAG:"+key+"]\n" + dbg.slice(Math.max(0,i-1800), Math.min(dbg.length,i+4200)) + "\n[/SF_RENDER_DIAG]\n");
   }
+  const wi=dbg.indexOf("child.stdin.write(frame)");
+  if(wi>=0){
+    const fn=dbg.lastIndexOf("async function",wi);
+    console.log("\n[SF_RENDER_DIAG:SELF_MOTION_FULL]\n"+dbg.slice(fn>=0?fn:Math.max(0,wi-9000),Math.min(dbg.length,wi+3500))+"\n[/SF_RENDER_DIAG]\n");
+  }
 }
 
 await fs.mkdir(path.join(root, "catalog"), { recursive: true });
