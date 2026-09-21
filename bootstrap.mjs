@@ -90,6 +90,108 @@ await restore("index.html", "public/index.html");
 
   h = h.replace("const statusText=ready?c.ready:c.prepare;", "const statusText=cloudReady?c.ready:localReady?c.ready:c.prepare;");
 
+  // LIGHT THEME CONTRAST FIX: later dark-mode polish rules used to override light variables.
+  if (!h.includes("LIGHT THEME CONTRAST FIX")) {
+    const lightFix = `
+<style id="sf-light-contrast-fix">
+/* LIGHT THEME CONTRAST FIX */
+html[data-theme="light"] body{
+  background:
+    radial-gradient(900px 620px at 10% 8%,rgba(116,92,255,.08),transparent 68%),
+    radial-gradient(850px 580px at 88% 12%,rgba(33,170,235,.08),transparent 70%),
+    linear-gradient(135deg,#f5f8fd 0%,#eef3fa 45%,#e7edf7 100%) !important;
+  color:#142033 !important;
+}
+html[data-theme="light"] .content,
+html[data-theme="light"] .main{color:#142033 !important}
+html[data-theme="light"] .card,
+html[data-theme="light"] .hero,
+html[data-theme="light"] .imageControl,
+html[data-theme="light"] .progressCard{
+  background:#ffffff !important;
+  border-color:#d6e0ef !important;
+  color:#142033 !important;
+  box-shadow:0 18px 45px rgba(44,63,93,.10) !important;
+}
+html[data-theme="light"] .muted,
+html[data-theme="light"] .small,
+html[data-theme="light"] .pageHead p,
+html[data-theme="light"] .technicalHiddenNote,
+html[data-theme="light"] .planCard small{color:#60708a !important}
+
+/* Keep navigation premium-dark in light mode for stable contrast. */
+html[data-theme="light"] .side{
+  --bg:#070b14;--bg2:#0b1020;--panel:#0e1528;--panel2:#111b32;--panel3:#17223c;
+  --line:#263552;--text:#f6f8ff;--muted:#9aacc8;
+  background:linear-gradient(180deg,#0b1020,#070b14) !important;
+  border-color:#263552 !important;
+  color:#f6f8ff !important;
+}
+html[data-theme="light"] .side .nav button{color:#9aacc8 !important}
+html[data-theme="light"] .side .nav button:hover,
+html[data-theme="light"] .side .nav button.active{color:#fff !important;background:#17223c !important}
+html[data-theme="light"] .side .navGroup,
+html[data-theme="light"] .side .version{color:#91a4c2 !important}
+
+/* Keep the top shell dark too; it avoids washed-out controls. */
+html[data-theme="light"] .top{
+  --panel:#0e1528;--panel2:#111b32;--panel3:#17223c;--line:#263552;--text:#f6f8ff;--muted:#9aacc8;
+  background:rgba(7,11,20,.96) !important;
+  border-color:#263552 !important;
+  color:#f6f8ff !important;
+}
+html[data-theme="light"] .top input,
+html[data-theme="light"] .top select,
+html[data-theme="light"] .top .iconBtn,
+html[data-theme="light"] .top .pill{
+  background:#0e1528 !important;color:#f6f8ff !important;border-color:#263552 !important;
+}
+html[data-theme="light"] .top input::placeholder{color:#7f91af !important}
+html[data-theme="light"] .top .keycap{background:#17223c !important;color:#9aacc8 !important;border-color:#263552 !important}
+
+/* Form fields had a hard-coded dark background in the polish stylesheet. */
+html[data-theme="light"] .content input,
+html[data-theme="light"] .content select,
+html[data-theme="light"] .content textarea{
+  background:#ffffff !important;
+  color:#142033 !important;
+  border-color:#cbd7e8 !important;
+  box-shadow:none;
+}
+html[data-theme="light"] .content input::placeholder,
+html[data-theme="light"] .content textarea::placeholder{color:#8291a8 !important}
+html[data-theme="light"] .content select option{background:#fff !important;color:#142033 !important}
+html[data-theme="light"] .content input:focus,
+html[data-theme="light"] .content select:focus,
+html[data-theme="light"] .content textarea:focus{
+  border-color:#5f79ff !important;
+  box-shadow:0 0 0 3px rgba(95,121,255,.13) !important;
+}
+
+/* Compact controls and cards. */
+html[data-theme="light"] .segmented,
+html[data-theme="light"] .cleanProgress,
+html[data-theme="light"] .stageDot{background:#eaf0f8 !important}
+html[data-theme="light"] .segBtn{color:#5e6f88 !important}
+html[data-theme="light"] .segBtn.active{color:#fff !important}
+html[data-theme="light"] .planCard,
+html[data-theme="light"] .planSummary,
+html[data-theme="light"] .chip,
+html[data-theme="light"] .refCard{background:#f7f9fd !important;color:#142033 !important}
+html[data-theme="light"] .planCard.active{background:#f1efff !important}
+html[data-theme="light"] .btn:not(.primary):not(.ok):not(.warn):not(.bad){
+  background:#eef3fb !important;color:#1c2b42 !important;border-color:#d2ddeb !important;
+}
+html[data-theme="light"] .btn.ghost{background:#fff !important}
+
+/* Preview/log remain dark intentionally, but readable. */
+html[data-theme="light"] .preview,
+html[data-theme="light"] .phone,
+html[data-theme="light"] .log{color:#dce8ff !important}
+</style>`;
+    h = h.replace("</head>", lightFix + "\n</head>");
+  }
+
   if (!h.includes('id="ownerLoginBtn"')) throw new Error("PUBLIC HOTFIX failed: owner button not inserted");
   if (!h.includes("a==='owner-login'")) throw new Error("PUBLIC HOTFIX failed: owner handler not inserted");
 
