@@ -55,6 +55,6 @@ export async function applyQualityRebuildV2(root){
 
   const uiPath=path.join(root,"public","index.html");
   let h=await fs.readFile(uiPath,"utf8");
-  h=h.replace("ShortForge V9.7.13 — QUALITY REBUILD","ShortForge V9.7.13 — QUALITY REBUILD 2");
+  h=h.replace("ShortForge V9.7.13 — QUALITY REBUILD","ShortForge V9.7.11");
   await fs.writeFile(uiPath,h,"utf8");
 }
