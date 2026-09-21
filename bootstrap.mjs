@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { brotliDecompressSync } from "node:zlib";
+import { applyQualityRebuild } from "./quality-rebuild.mjs";
 
 const root = process.cwd();
 
@@ -362,6 +363,8 @@ html[data-theme="light"] .log{color:#dce8ff !important}
 
   await fs.writeFile(p, h);
 }
+
+await applyQualityRebuild(root);
 
 await fs.mkdir(path.join(root, "catalog"), { recursive: true });
 {
