@@ -156,11 +156,11 @@ await restore("index.html", "public/index.html");
       '  return {file,engine:"pollinations-flux",model:"FLUX via Pollinations",expandedPrompt:expanded};',
       '}',
       ''
-    ].join("\\n");
+    ].join(String.fromCharCode(10));
     s=s.replace(imageEndpoint,publicAiHelper+imageEndpoint);
   }
 
-  const smartFallback='    if(!img){\\n      // PHOTO is optional in V9.7.11. Smart Composer creates a native ShortForge visual instead of blocking Image Studio.';
+  const smartFallback='    if(!img){'+String.fromCharCode(10)+'      // PHOTO is optional in V9.7.11. Smart Composer creates a native ShortForge visual instead of blocking Image Studio.';
   if(s.includes(smartFallback) && !s.includes("Generated with Public AI PHOTO.")){
     const aiAttempt=[
       '    if(!img&&String(process.env.SHORTFORGE_PUBLIC_AI_PHOTO||"1")!=="0"){',
@@ -170,7 +170,7 @@ await restore("index.html", "public/index.html");
       '      }catch(e){localError=[localError,cleanError(e)].filter(Boolean).join(" | ");}',
       '    }',
       ''
-    ].join("\\n");
+    ].join(String.fromCharCode(10));
     s=s.replace(smartFallback,aiAttempt+smartFallback);
   }
 
