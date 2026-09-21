@@ -1,0 +1,12 @@
+{
+  "name": "shortforge-v9-7-11",
+  "version": "9.7.11",
+  "private": true,
+  "type": "module",
+  "scripts": {"start": "node bootstrap.mjs"},
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.2.0",
+    "ffmpeg-static": "^5.2.0"
+  }
+}
