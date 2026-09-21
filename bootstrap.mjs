@@ -118,7 +118,7 @@ await restore("index.html", "public/index.html");
   if(!s.includes("function htmlText(v){")){
     const stripMarker='function stripHtml(v){';
     if(!s.includes(stripMarker)) throw new Error("RESEARCH HOTFIX: stripHtml marker missing");
-    const htmlHelper='function htmlText(v){ return String(v||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&quot;/gi,"\\\"").replace(/&#39;|&apos;/gi,"\\\'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/\\s+/g," ").trim(); }\\n';
+    const htmlHelper='function htmlText(v){ return String(v||"").replace(/\\s+/g," ").trim(); }'+String.fromCharCode(10);
     s=s.replace(stripMarker,htmlHelper+stripMarker);
   }
 
