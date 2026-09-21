@@ -24,9 +24,9 @@ export async function applyQualityRebuild(root) {
   const serverPath = path.join(root, "server.mjs");
   let s = await fs.readFile(serverPath, "utf8");
 
-  // Keep the product version at V9.7.11. Quality rebuilds are fixes, not a version bump.
-  s = s.replace('const VERSION = "9.7.13";', 'const VERSION = "9.7.11";');
-  s = s.replace('const VERSION="9.7.13";', 'const VERSION="9.7.11";');
+  // Product version for this quality rebuild.
+  s = s.replace('const VERSION = "9.7.11";', 'const VERSION = "9.7.13";');
+  s = s.replace('const VERSION="9.7.11";', 'const VERSION="9.7.13";');
 
   // ---------------------------------------------------------------------------
   // 1) SEMANTIC / VISUAL LOCK
@@ -286,7 +286,7 @@ export async function applyQualityRebuild(root) {
   const uiPath = path.join(root, "public", "index.html");
   let h = await fs.readFile(uiPath, "utf8");
 
-  h = h.replace("ShortForge V9.7.11 — PUBLIC HOTFIX", "ShortForge V9.7.11");
+  h = h.replaceAll("V9.7.11", "V9.7.13");
 
   h = h.replace(
     "const cfg=state.localImageConfig||{},mgr=state.imageEngine||{},cloud=state.cloudImageConfig||state.status?.cloudPhoto||{},quality=cfg.quality||'photo';",
