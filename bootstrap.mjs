@@ -58,6 +58,13 @@ await restore("index.html", "public/index.html");
   const cleanNew='function cleanError(err) { const x=String(err?.message || err || "Unknown error").replace(/\\s+/g, " "); return x.length>2400?x.slice(-2400):x; }';
   if(s.includes(cleanOld)) s=s.replace(cleanOld,cleanNew);
 
+  // BOUND X264 THREADS: Railway exposes host CPU count to x264, which selected ~60
+  // threads inside a 2-vCPU/1-GB service. Limit libx264 to 2 threads for every
+  // runFfmpeg encode on the public deployment.
+  const runFfmpegHead='async function runFfmpeg(args, opts = {}) {\n  if (!ffmpegPath)';
+  const runFfmpegBound='async function runFfmpeg(args, opts = {}) {\n  const publicFfmpegBound=Boolean(process.env.RAILWAY_PROJECT_ID||process.env.RAILWAY_ENVIRONMENT_ID||process.env.SF_PUBLIC_MODE==="1");\n  if(publicFfmpegBound&&Array.isArray(args)&&args.includes("libx264")&&!args.includes("-threads")){const pidx=args.indexOf("-preset");const cidx=args.indexOf("-c:v");const at=pidx>=0?pidx:(cidx>=0?cidx+2:Math.max(0,args.length-1));args.splice(at,0,"-threads","2");}\n  if (!ffmpegPath)';
+  if(s.includes(runFfmpegHead)) s=s.replace(runFfmpegHead,runFfmpegBound);
+
   // RENDER STABILITY HOTFIX: Railway has a 1 GB memory limit. Raw 1080p RGB frames
   // can make ffmpeg close its stdin, which surfaces as write EPIPE. Keep the requested
   // final profile, but use a memory-safe internal raster on public Railway and let
@@ -88,6 +95,9 @@ await restore("index.html", "public/index.html");
   const rawPresetOld='ctx.draft?"ultrafast":q.preset,"-crf",String(ctx.draft?28:q.crf)';
   const rawPresetNew='ctx.draft?"ultrafast":publicMemorySafe?"ultrafast":q.preset,"-crf",String(ctx.draft?28:publicMemorySafe?23:q.crf)';
   s=s.replace(rawPresetOld,rawPresetNew);
+  const rawThreadOld='"-c:v","libx264","-preset",ctx.draft?"ultrafast":publicMemorySafe?"ultrafast":q.preset';
+  const rawThreadNew='"-c:v","libx264",...(publicMemorySafe?["-threads","2"]:[]),"-preset",ctx.draft?"ultrafast":publicMemorySafe?"ultrafast":q.preset';
+  s=s.replace(rawThreadOld,rawThreadNew);
 
   // Swallow the pipe's secondary EPIPE event and report the actual ffmpeg close/error
   // instead of crashing the job with a misleading write EPIPE.
