@@ -114,6 +114,70 @@ await restore("index.html", "public/index.html");
   if(s.includes(renderHead)) throw new Error("RENDER HOTFIX failed: old 1080p raw render head remains");
   if(!s.includes("publicMemorySafe")) throw new Error("RENDER HOTFIX failed: public memory-safe mode missing");
 
+  // RESEARCH FIX: stripHtml depended on a missing htmlText helper.
+  if(!s.includes("function htmlText(v){")){
+    const stripMarker='function stripHtml(v){';
+    if(!s.includes(stripMarker)) throw new Error("RESEARCH HOTFIX: stripHtml marker missing");
+    const htmlHelper='function htmlText(v){ return String(v||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&quot;/gi,"\\\"").replace(/&#39;|&apos;/gi,"\\\'").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/\\s+/g," ").trim(); }\\n';
+    s=s.replace(stripMarker,htmlHelper+stripMarker);
+  }
+
+  // SELF-MOTION is a connected renderer even when optional Local PHOTO is offline.
+  s=s.replace('connected:photoReady,','connected:true,');
+
+  // FINAL FPS FIX: concat muxing was falling back to 25 fps. Force the final stitched
+  // MP4 to a stable 30 fps, matching Max/Ultra UI and scene normalization.
+  const stitchOld='await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c:v", "libx264"';
+  const stitchNew='await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listFile, "-vf", "fps=30", "-r", "30", "-c:v", "libx264"';
+  if(s.includes(stitchOld)) s=s.replace(stitchOld,stitchNew);
+
+  // PUBLIC AI PHOTO: use a real semantic image model before procedural Smart Composer.
+  if(!s.includes("async function generatePublicPhotoAI(")){
+    const imageEndpoint='app.post("/api/image/free", async (req,res)=> {';
+    if(!s.includes(imageEndpoint)) throw new Error("PHOTO HOTFIX: image endpoint marker missing");
+    const publicAiHelper=[
+      'async function expandPublicPhotoPrompt(prompt,style="cinematic"){',
+      '  const user=safeProjectText(prompt,1600).trim();',
+      '  const instruction="You are a cinematic image prompt engineer. Rewrite the user request into one precise English image-generation prompt. Preserve the exact meaning. Do not invent people, astronauts, buildings, text or unrelated objects unless explicitly requested. For scientific what-if topics, show physically relevant objects and consequences. Specify composition, lighting, materials, scale, camera and photorealism. Output only the prompt. User request: "+user+"\\nStyle: "+safeProjectText(style,120);',
+      '  try{const r=await fetch("https://text.pollinations.ai/"+encodeURIComponent(instruction),{headers:{"User-Agent":"ShortForge/9.7.12-public"},signal:AbortSignal.timeout(18000)});if(r.ok){const x=safeProjectText(await r.text(),2600).trim();if(x.length>40)return x;}}catch{}',
+      '  return user+", "+safeProjectText(style,120)+", hyper-realistic cinematic photography, physically plausible lighting, accurate materials, detailed textures, strong composition, high dynamic range, sharp focal subject, no text, no watermark, no logo";',
+      '}',
+      'async function generatePublicPhotoAI(prompt,w,h,seed,style="cinematic",opts={}){',
+      '  const expanded=await expandPublicPhotoPrompt(prompt,style);',
+      '  let rw=1024,rh=1024; const ratio=w/Math.max(1,h);',
+      '  if(ratio<0.85){rw=768;rh=1344}else if(ratio>1.2){rw=1344;rh=768}else if(ratio<0.95){rw=864;rh=1080}',
+      '  const url="https://image.pollinations.ai/prompt/"+encodeURIComponent(expanded)+"?width="+rw+"&height="+rh+"&seed="+(Number(seed)||1)+"&nologo=true&model=flux";',
+      '  const r=await fetch(url,{headers:{"User-Agent":"ShortForge/9.7.12-public","Accept":"image/*"},signal:AbortSignal.timeout(65000)});',
+      '  if(!r.ok)throw new Error("PUBLIC_AI_PHOTO_HTTP_"+r.status);',
+      '  const ct=String(r.headers.get("content-type")||""); if(!ct.startsWith("image/"))throw new Error("PUBLIC_AI_PHOTO_BAD_CONTENT");',
+      '  const buf=Buffer.from(await r.arrayBuffer()); if(buf.length<12000)throw new Error("PUBLIC_AI_PHOTO_EMPTY");',
+      '  const dir=opts.outputDir||IMAGES_DIR; await fs.mkdir(dir,{recursive:true});',
+      '  const file=path.join(dir,"public-ai-"+crypto.randomUUID()+".jpg"); await fs.writeFile(file,buf);',
+      '  return {file,engine:"pollinations-flux",model:"FLUX via Pollinations",expandedPrompt:expanded};',
+      '}',
+      ''
+    ].join("\\n");
+    s=s.replace(imageEndpoint,publicAiHelper+imageEndpoint);
+  }
+
+  const smartFallback='    if(!img){\\n      // PHOTO is optional in V9.7.11. Smart Composer creates a native ShortForge visual instead of blocking Image Studio.';
+  if(s.includes(smartFallback) && !s.includes("Generated with Public AI PHOTO.")){
+    const aiAttempt=[
+      '    if(!img&&String(process.env.SHORTFORGE_PUBLIC_AI_PHOTO||"1")!=="0"){',
+      '      try{',
+      '        const pub=await generatePublicPhotoAI(prompt,w,h,seed,b.style||"photorealistic",{outputDir:work});',
+      '        img=pub.file;engine=pub.engine;model=pub.model;generationAttempt=1;note="Generated with Public AI PHOTO.";',
+      '      }catch(e){localError=[localError,cleanError(e)].filter(Boolean).join(" | ");}',
+      '    }',
+      ''
+    ].join("\\n");
+    s=s.replace(smartFallback,aiAttempt+smartFallback);
+  }
+
+  s=s.replace('fallbackUsed:false,photorealistic:engine!=="forge-smart-composer"', 'fallbackUsed:engine==="forge-smart-composer",photorealistic:engine!=="forge-smart-composer"');
+  s=s.replace('provider:engine==="cloudflare-workers-ai"?"cloud":engine==="forge-smart-composer"?"smart":"local"', 'provider:engine==="cloudflare-workers-ai"?"cloud":engine==="pollinations-flux"?"public-ai":engine==="forge-smart-composer"?"smart":"local"');
+  s=s.replace('license:engine==="cloudflare-workers-ai"?"Generated with Cloudflare Workers AI":"Generated by ShortForge"', 'license:engine==="cloudflare-workers-ai"?"Generated with Cloudflare Workers AI":engine==="pollinations-flux"?"AI-generated image":"Generated by ShortForge"');
+
   await fs.writeFile(p, s);
 }
 
@@ -173,6 +237,13 @@ await restore("index.html", "public/index.html");
     "opts({ru:'Русский',en:'English',uz:'O‘zbek'},state.lang)",
     "opts(languageNames(),state.lang)"
   );
+
+  // ROBUST LANGUAGE FIX: previous exact opts() replacement could miss. Insert by stable head() marker.
+  if(!h.includes("function languageNames(){")){
+    const headMarker="function head(title,sub,actions=''){";
+    if(!h.includes(headMarker)) throw new Error("LANG HOTFIX: head() marker missing");
+    h=h.replace(headMarker,"function languageNames(){return state.lang==='ru'?{ru:'Русский',en:'Английский',uz:'Узбекский'}:state.lang==='uz'?{ru:'Ruscha',en:'Inglizcha',uz:'O‘zbekcha'}:{ru:'Russian',en:'English',uz:'Uzbek'}}"+headMarker);
+  }
 
   // STORYBOARD INTERNAL-ONLY: keep planning and scene structures in code, but do not
   // route normal users to the standalone storyboard editor.
@@ -293,10 +364,26 @@ html[data-theme="light"] .log{color:#dce8ff !important}
 }
 
 await fs.mkdir(path.join(root, "catalog"), { recursive: true });
-try {
-  await fs.access(path.join(root, "catalog", "topics_1000.json"));
-} catch {
-  await fs.writeFile(path.join(root, "catalog", "topics_1000.json"), JSON.stringify({ version: "9.7.11", count: 0, topics: [] }));
+{
+  const catalogPath=path.join(root,"catalog","topics_1000.json");
+  let existing=null; try{existing=JSON.parse(await fs.readFile(catalogPath,"utf8"))}catch{}
+  if(!Array.isArray(existing?.topics)||existing.topics.length===0){
+    const topics=[
+      {id:"sun-disappears",category:"space",canonical_ru:"Солнце исчезает",canonical_en:"Sun disappears",aliases:["что будет если солнце исчезнет","если солнце погаснет","sun disappears","sun vanishes"],queries:["Sun Earth scientific visualization","Earth without sunlight"],visuals:["Sun and Earth in deep space","Earth going dark after sunlight delay","frozen dark Earth drifting through space"],forbidden:["religious figure","fictional character"]},
+      {id:"black-hole",category:"space",canonical_ru:"чёрная дыра",canonical_en:"black hole",aliases:["черная дыра","black hole","event horizon"],queries:["black hole accretion disk astrophotography","gravitational lensing black hole"],visuals:["black hole with accretion disk","gravitational lensing star field"],forbidden:["cartoon"]},
+      {id:"universe",category:"space",canonical_ru:"Вселенная",canonical_en:"Universe",aliases:["вселенная","universe","космос"],queries:["deep universe galaxies","cosmic web visualization"],visuals:["deep field galaxies","cosmic web"],forbidden:[]},
+      {id:"earth",category:"science",canonical_ru:"Земля",canonical_en:"Earth",aliases:["земля","планета земля","earth"],queries:["Earth from space NASA style","Earth atmosphere"],visuals:["detailed Earth from orbit","Earth atmosphere limb"],forbidden:[]},
+      {id:"moon",category:"space",canonical_ru:"Луна",canonical_en:"Moon",aliases:["луна","moon"],queries:["Moon surface realistic","Earth Moon system"],visuals:["Moon surface","Moon and Earth"],forbidden:[]},
+      {id:"mars",category:"space",canonical_ru:"Марс",canonical_en:"Mars",aliases:["марс","mars"],queries:["Mars landscape realistic","Mars from orbit"],visuals:["Mars landscape","Mars planet"],forbidden:[]},
+      {id:"tornado",category:"weather",canonical_ru:"торнадо",canonical_en:"tornado",aliases:["торнадо","смерч","tornado"],queries:["tornado storm photography"],visuals:["tornado over landscape"],forbidden:["cartoon"]},
+      {id:"ocean",category:"nature",canonical_ru:"океан",canonical_en:"ocean",aliases:["океан","море","ocean"],queries:["deep ocean cinematic","ocean waves"],visuals:["deep ocean","storm waves"],forbidden:[]},
+      {id:"human-body",category:"biology",canonical_ru:"человеческое тело",canonical_en:"human body",aliases:["тело человека","организм человека","human body"],queries:["human anatomy medical visualization"],visuals:["scientific anatomy visualization"],forbidden:[]},
+      {id:"physics",category:"science",canonical_ru:"физика",canonical_en:"physics",aliases:["физика","physics"],queries:["physics scientific visualization"],visuals:["physical process visualization"],forbidden:[]},
+      {id:"technology",category:"technology",canonical_ru:"технологии",canonical_en:"technology",aliases:["технологии","technology","ии","ai"],queries:["advanced technology cinematic"],visuals:["modern technology detail"],forbidden:[]},
+      {id:"history",category:"history",canonical_ru:"история",canonical_en:"history",aliases:["история","history"],queries:["historical reconstruction cinematic"],visuals:["historical environment reconstruction"],forbidden:[]}
+    ];
+    await fs.writeFile(catalogPath,JSON.stringify({version:"9.7.12-public",count:topics.length,topics},null,2));
+  }
 }
 
 await import("./server.mjs");
