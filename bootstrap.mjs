@@ -52,6 +52,12 @@ await restore("index.html", "public/index.html");
       );
     }
   }
+  // Keep the useful tail of ffmpeg errors. The old helper kept the beginning
+  // (version banner) and cut off the actual failure line at the end.
+  const cleanOld='function cleanError(err) { return String(err?.message || err || "Unknown error").replace(/\\s+/g, " ").slice(0, 1200); }';
+  const cleanNew='function cleanError(err) { const x=String(err?.message || err || "Unknown error").replace(/\\s+/g, " "); return x.length>2400?x.slice(-2400):x; }';
+  if(s.includes(cleanOld)) s=s.replace(cleanOld,cleanNew);
+
   // RENDER STABILITY HOTFIX: Railway has a 1 GB memory limit. Raw 1080p RGB frames
   // can make ffmpeg close its stdin, which surfaces as write EPIPE. Keep the requested
   // final profile, but use a memory-safe internal raster on public Railway and let
