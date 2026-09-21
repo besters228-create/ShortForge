@@ -233,6 +233,13 @@ if (process.env.SF_RENDER_DIAG === "1") {
     "ffmpeg",
     "renderScene",
     "renderLocal",
+    "const sw",
+    "const sh",
+    "const fps",
+    "const frames",
+    "const q=",
+    "selfMotion",
+    "SELF-MOTION",
     "final render"
   ];
   for (const key of keys) {
