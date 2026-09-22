@@ -391,4 +391,12 @@ await fs.mkdir(path.join(root, "catalog"), { recursive: true });
   }
 }
 
+// Publish the standalone AI Uprising 80% mobile game under the same Railway domain.
+{
+  const gameSrc = path.join(root, "web-games", "ai-uprising-80", "index.html");
+  const gameDir = path.join(root, "public", "80");
+  await fs.mkdir(gameDir, { recursive: true });
+  await fs.copyFile(gameSrc, path.join(gameDir, "index.html"));
+}
+
 await import("./server.mjs");
